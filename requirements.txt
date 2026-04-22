@@ -1,0 +1,8 @@
+Django>=4.2
+psycopg2-binaryDjango>=4.2
+pandas>=2.0
+numpy>=1.24
+requests>=2.31
+openpyxl>=3.1         
+python-dotenv>=1.0    
+psycopg2-binary>=2.9  
