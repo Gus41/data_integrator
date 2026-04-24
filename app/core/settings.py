@@ -37,6 +37,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    #---
+    'sources'
 ]
 
 MIDDLEWARE = [
@@ -49,12 +52,24 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://localhost:8000',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+    'https://127.0.0.1:8000',
+    'https://sturdy-waffle-9v49q5j7gp5cxjrj-8000.app.github.dev',
+    'http://sturdy-waffle-9v49q5j7gp5cxjrj-8000.app.github.dev'
+]
+
 ROOT_URLCONF = 'core.urls'
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [
+            BASE_DIR / 'templates',
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -125,3 +140,6 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
