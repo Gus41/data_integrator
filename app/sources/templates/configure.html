@@ -152,10 +152,10 @@
             <label class="flex items-center gap-2 px-3 py-1.5 border border-stone-200 rounded-xl cursor-pointer hover:border-stone-300 transition-colors col-label">
               <input type="checkbox"
                      name="columns_to_keep"
-                     value="{{ col }}"
+                     value="{{ item.source.label }}:{{ col }}"
                      class="w-3.5 h-3.5 accent-stone-900 col-checkbox"
                      {% if not existing %}checked
-                     {% elif col in existing.columns_to_keep %}checked{% endif %} />
+                     {% elif item.source.label|add:':'|add:col in existing.columns_to_keep or col in existing.columns_to_keep %}checked{% endif %} />
               <span class="font-mono text-xs text-stone-700">{{ col }}</span>
             </label>
           {% empty %}

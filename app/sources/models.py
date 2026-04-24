@@ -11,6 +11,9 @@ class Integration(models.Model):
     name = models.CharField(max_length=255)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     record_count = models.IntegerField(null=True, blank=True)
+    result_columns = models.JSONField(null=True, blank=True)
+    result_preview = models.JSONField(null=True, blank=True)
+    chart_data = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

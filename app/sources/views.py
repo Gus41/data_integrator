@@ -3,7 +3,8 @@ from django.views import View
 from .models import Integration, DataSource, JoinConfig
 from .forms import IntegrationForm
 from django.contrib import messages
-from .parser import extract_columns
+from .parser import extract_columns, execute_pipeline, make_preview, build_chart_data
+import json
 
 class IntegrationListView(View):
     def get(self, request):
@@ -45,9 +46,16 @@ class IntegrationDetailView(View):
     def get(self, request, pk):
         integration = get_object_or_404(Integration, pk=pk)
         sources = integration.sources.all()
+        chart_data = integration.chart_data or {}
+        pipeline_columns = integration.result_columns or []
+        preview = integration.result_preview or []
+        pipeline_rows = [[row.get(col) for col in pipeline_columns] for row in preview]
         return render(request, 'detail.html', {
             'integration': integration,
             'sources': sources,
+            'pipeline_preview': pipeline_rows,
+            'pipeline_columns': pipeline_columns,
+            'chart_data_json': json.dumps(chart_data),
         })
 
 
@@ -98,11 +106,28 @@ class IntegrationConfigureView(View):
             }
         )
  
-        integration.status = 'processing'
-        integration.save()
- 
-        messages.success(request, 'Configuração salva. Pronto para executar o pipeline.')
-        return redirect('integration_configure', pk=pk)
+        print(f"[DEBUG] configure post integration={integration.pk} name={integration.name}")
+        print(f"[DEBUG] selected keys A={key_a} B={key_b} join_type={join_type}")
+        print(f"[DEBUG] selected columns_to_keep={cols}")
+        for source in integration.sources.all():
+            print(f"[DEBUG] source={source.label} origin={source.origin} type={source.data_type} conn={source.connection_string} file={source.file}")
+
+        try:
+            result = execute_pipeline(integration)
+            integration.status = 'done'
+            integration.record_count = len(result)
+            integration.result_columns = list(result.columns)
+            integration.result_preview = make_preview(result)
+            integration.chart_data = build_chart_data(result)
+            integration.save()
+            messages.success(request, 'Pipeline executado com sucesso. Veja o resultado abaixo.')
+            return redirect('integration_detail', pk=integration.pk)
+        except Exception as e:
+            print(f"[DEBUG] execute_pipeline failed integration={integration.pk} error={e}")
+            integration.status = 'error'
+            integration.save()
+            messages.error(request, f'Erro ao executar pipeline: {e}')
+            return redirect('integration_configure', pk=pk)
  
 
 
