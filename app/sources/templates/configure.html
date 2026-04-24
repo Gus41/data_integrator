@@ -1,4 +1,224 @@
 {% extends "global/base.html" %}
+
+{% block title %}Configurar join — {{ integration.name }}{% endblock %}
+
 {% block content %}
-<p class="text-stone-400 text-sm">Em construção...</p>
+
+<!-- HEADER -->
+<div class="mb-8">
+  <a href="{% url 'integration_detail' integration.pk %}"
+     class="text-xs text-stone-400 hover:text-stone-600 transition-colors mb-3 inline-block">
+    ← {{ integration.name }}
+  </a>
+  <h1 class="text-xl font-medium tracking-tight">Configurar integração</h1>
+  <p class="text-sm text-stone-400 mt-1">Defina como as fontes serão combinadas</p>
+</div>
+
+<!-- ERROS DE LEITURA -->
+{% for item in sources_data %}
+  {% if item.error %}
+    <div class="flex items-start gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl mb-4 text-sm">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" class="shrink-0 mt-0.5">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <div>
+        <span class="font-medium text-red-700">Erro ao ler Fonte {{ item.source.label }}:</span>
+        <span class="text-red-600"> {{ item.error }}</span>
+      </div>
+    </div>
+  {% endif %}
+{% endfor %}
+
+<form method="post">
+  {% csrf_token %}
+
+  <!-- PREVIEW DAS COLUNAS -->
+  <p class="font-mono text-xs text-stone-400 uppercase tracking-widest mb-3">Colunas detectadas</p>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+    {% for item in sources_data %}
+      <div class="bg-white border border-stone-200 rounded-2xl p-5">
+        <div class="flex items-center justify-between mb-4">
+          <span class="font-mono text-xs text-stone-400 uppercase tracking-widest">
+            Fonte {{ item.source.label }}
+          </span>
+          <span class="font-mono text-xs px-2 py-1 rounded bg-stone-100 text-stone-500 border border-stone-200">
+            {{ item.source.get_data_type_display }}
+          </span>
+        </div>
+
+        <div class="flex flex-wrap gap-1.5">
+          {% for col in item.columns %}
+            <span class="font-mono text-xs px-2 py-1 rounded-lg bg-stone-50 border border-stone-200 text-stone-600">
+              {{ col }}
+            </span>
+          {% empty %}
+            <span class="text-xs text-stone-400">Nenhuma coluna detectada</span>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <hr class="border-stone-200 mb-8" />
+
+  <!-- CONFIGURAÇÃO DO JOIN -->
+  <p class="font-mono text-xs text-stone-400 uppercase tracking-widest mb-3">Configuração do join</p>
+
+  <div class="bg-white border border-stone-200 rounded-2xl p-6 mb-6">
+
+    <!-- CHAVES -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+      <div>
+        <label class="block text-xs font-medium text-stone-500 mb-1.5">Chave na Fonte A</label>
+        <select name="key_source_a" required
+          class="w-full px-3 py-2 text-sm border border-stone-200 rounded-xl outline-none focus:border-stone-400 transition-colors appearance-none bg-white">
+          <option value="">Selecione a coluna...</option>
+          {% for col in columns_a %}
+            <option value="{{ col }}"
+              {% if existing.key_source_a == col %}selected{% endif %}>
+              {{ col }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-stone-500 mb-1.5">Chave na Fonte B</label>
+        <select name="key_source_b" required
+          class="w-full px-3 py-2 text-sm border border-stone-200 rounded-xl outline-none focus:border-stone-400 transition-colors appearance-none bg-white">
+          <option value="">Selecione a coluna...</option>
+          {% for col in columns_b %}
+            <option value="{{ col }}"
+              {% if existing.key_source_b == col %}selected{% endif %}>
+              {{ col }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <!-- TIPO DE JOIN -->
+    <div>
+      <label class="block text-xs font-medium text-stone-500 mb-3">Tipo de join</label>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {% for value, label in join_types %}
+          <label class="flex flex-col items-center gap-1.5 p-3 border border-stone-200 rounded-xl cursor-pointer hover:border-stone-300 transition-colors">
+            <input type="radio" name="join_type" value="{{ value }}"
+              class="sr-only"
+              {% if existing.join_type == value %}checked
+              {% elif not existing and value == 'inner' %}checked{% endif %}
+              onchange="highlightJoin(this)" />
+            <span class="text-sm font-medium join-label">{{ label }}</span>
+            <span class="text-xs text-stone-400 text-center leading-tight">
+              {% if value == 'inner' %}Apenas registros em comum
+              {% elif value == 'left' %}Todos da Fonte A
+              {% elif value == 'right' %}Todos da Fonte B
+              {% elif value == 'outer' %}Todos os registros
+              {% endif %}
+            </span>
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- COLUNAS A MANTER -->
+  <p class="font-mono text-xs text-stone-400 uppercase tracking-widest mb-3">Colunas a manter no resultado</p>
+  <div class="bg-white border border-stone-200 rounded-2xl p-6 mb-8">
+
+    <div class="flex items-center justify-between mb-5">
+      <p class="text-sm text-stone-500">Selecione as colunas que farão parte do dataset final</p>
+      <div class="flex gap-1">
+        <button type="button" onclick="toggleAll(true)"
+          class="text-xs text-stone-500 hover:text-stone-900 px-2.5 py-1.5 rounded-lg hover:bg-stone-100 transition-colors">
+          Tudo
+        </button>
+        <button type="button" onclick="toggleAll(false)"
+          class="text-xs text-stone-500 hover:text-stone-900 px-2.5 py-1.5 rounded-lg hover:bg-stone-100 transition-colors">
+          Limpar
+        </button>
+      </div>
+    </div>
+
+    {% for item in sources_data %}
+      <div class="mb-5 last:mb-0">
+        <p class="font-mono text-xs text-stone-400 uppercase tracking-widest mb-2">
+          Fonte {{ item.source.label }}
+        </p>
+        <div class="flex flex-wrap gap-2">
+          {% for col in item.columns %}
+            <label class="flex items-center gap-2 px-3 py-1.5 border border-stone-200 rounded-xl cursor-pointer hover:border-stone-300 transition-colors col-label">
+              <input type="checkbox"
+                     name="columns_to_keep"
+                     value="{{ col }}"
+                     class="w-3.5 h-3.5 accent-stone-900 col-checkbox"
+                     {% if not existing %}checked
+                     {% elif col in existing.columns_to_keep %}checked{% endif %} />
+              <span class="font-mono text-xs text-stone-700">{{ col }}</span>
+            </label>
+          {% empty %}
+            <span class="text-xs text-stone-400">Nenhuma coluna disponível</span>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <!-- AÇÕES -->
+  <div class="flex justify-between items-center">
+    <a href="{% url 'integration_detail' integration.pk %}"
+       class="px-4 py-2 text-sm text-stone-500 hover:bg-stone-200 rounded-xl transition-colors">
+      ← Voltar
+    </a>
+    <button type="submit"
+      class="px-5 py-2 bg-stone-900 text-white text-sm font-medium rounded-xl hover:bg-stone-700 transition-colors">
+      Salvar e executar pipeline →
+    </button>
+  </div>
+
+</form>
+
+{% endblock %}
+
+
+{% block extra_js %}
+<script>
+  // highlight do tipo de join selecionado
+  function highlightJoin(radio) {
+    document.querySelectorAll('input[name="join_type"]').forEach(r => {
+      r.closest('label').classList.remove('border-stone-900', 'bg-stone-50');
+    });
+    radio.closest('label').classList.add('border-stone-900', 'bg-stone-50');
+  }
+
+  // inicializa highlight no carregamento
+  document.addEventListener('DOMContentLoaded', () => {
+    const checked = document.querySelector('input[name="join_type"]:checked');
+    if (checked) highlightJoin(checked);
+
+    // highlight dos checkboxes de coluna
+    document.querySelectorAll('.col-checkbox').forEach(cb => {
+      updateColLabel(cb);
+      cb.addEventListener('change', () => updateColLabel(cb));
+    });
+  });
+
+  function updateColLabel(cb) {
+    const label = cb.closest('label');
+    if (cb.checked) {
+      label.classList.add('border-stone-900', 'bg-stone-50');
+    } else {
+      label.classList.remove('border-stone-900', 'bg-stone-50');
+    }
+  }
+
+  function toggleAll(checked) {
+    document.querySelectorAll('.col-checkbox').forEach(cb => {
+      cb.checked = checked;
+      updateColLabel(cb);
+    });
+  }
+</script>
 {% endblock %}

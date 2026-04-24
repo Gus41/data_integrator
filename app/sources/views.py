@@ -1,8 +1,9 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views import View
-from .models import Integration, DataSource
+from .models import Integration, DataSource, JoinConfig
 from .forms import IntegrationForm
 from django.contrib import messages
+from .parser import extract_columns
 
 class IntegrationListView(View):
     def get(self, request):
@@ -48,12 +49,63 @@ class IntegrationDetailView(View):
             'integration': integration,
             'sources': sources,
         })
+
+
 class IntegrationConfigureView(View):
     def get(self, request, pk):
         integration = get_object_or_404(Integration, pk=pk)
+ 
+        sources_data = []
+        for source in integration.sources.all():
+            try:
+                cols = extract_columns(source)
+                error = None
+            except Exception as e:
+                cols = []
+                error = str(e)
+            sources_data.append({
+                'source': source,
+                'columns': cols,
+                'error': error,
+            })
+ 
+        existing = getattr(integration, 'join_config', None)
+ 
         return render(request, 'configure.html', {
             'integration': integration,
+            'sources_data': sources_data,
+            'columns_a': next((s['columns'] for s in sources_data if s['source'].label == 'A'), []),
+            'columns_b': next((s['columns'] for s in sources_data if s['source'].label == 'B'), []),
+            'existing': existing,
+            'join_types': JoinConfig.JOIN_CHOICES,
         })
+ 
+    def post(self, request, pk):
+        integration = get_object_or_404(Integration, pk=pk)
+ 
+        key_a     = request.POST.get('key_source_a')
+        key_b     = request.POST.get('key_source_b')
+        join_type = request.POST.get('join_type', 'inner')
+        cols      = request.POST.getlist('columns_to_keep')
+ 
+        JoinConfig.objects.update_or_create(
+            integration=integration,
+            defaults={
+                'key_source_a':     key_a,
+                'key_source_b':     key_b,
+                'join_type':        join_type,
+                'columns_to_keep':  cols,
+            }
+        )
+ 
+        integration.status = 'processing'
+        integration.save()
+ 
+        messages.success(request, 'Configuração salva. Pronto para executar o pipeline.')
+        return redirect('integration_configure', pk=pk)
+ 
+
+
 
 class IntegrationSourcesUpdateView(View):
     def post(self, request, pk):
