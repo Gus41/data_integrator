@@ -67,6 +67,7 @@
             <label class="block text-xs font-medium text-stone-500 mb-1.5">
               Arquivo
               {% if source.data_type == 'csv' %}<span class="font-mono text-stone-400">.csv</span>
+              {% elif source.data_type == 'xlsx' %}<span class="font-mono text-stone-400">.xlsx</span>
               {% elif source.data_type == 'json' %}<span class="font-mono text-stone-400">.json</span>
               {% endif %}
             </label>
@@ -98,7 +99,7 @@
               <input type="file"
                      name="file_{{ source.label }}"
                      class="hidden"
-                     accept="{% if source.data_type == 'csv' %}.csv{% elif source.data_type == 'json' %}.json{% endif %}"
+                     accept="{% if source.data_type == 'csv' %}.csv{% elif source.data_type == 'xlsx' %}.xlsx{% elif source.data_type == 'json' %}.json{% endif %}"
                      onchange="updateDropzoneLabel(this, '{{ source.label }}')" />
             </label>
           </div>

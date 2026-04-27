@@ -49,6 +49,7 @@ class JoinConfig(models.Model):
 class DataSource(models.Model):
     TYPE_CHOICES = [
         ('csv', 'CSV'),
+        ('xlsx', 'XLSX'),
         ('json', 'JSON'),
         ('api', 'API REST'),
         ('sql', 'Banco SQL'),

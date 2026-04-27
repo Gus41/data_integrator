@@ -1,4 +1,5 @@
 import json
+from io import BytesIO, StringIO
 import pandas as pd
 import requests
 
@@ -6,7 +7,7 @@ import requests
 def extract_columns(source):
     """
     Lê uma amostra da fonte e retorna lista de colunas.
-    Suporta CSV, JSON (upload ou URL) e API REST.
+    Suporta CSV, XLSX, JSON (upload ou URL), API REST e banco de dados.
     """
 
     if source.origin == 'upload' and source.file:
@@ -25,7 +26,10 @@ def _from_file(source):
     path = source.file.path
 
     if source.data_type == 'csv':
-        df = pd.read_csv(path, nrows=5)
+        df = pd.read_csv(path, sep=None, engine='python', nrows=5)
+
+    elif source.data_type == 'xlsx':
+        df = pd.read_excel(path, engine='openpyxl').head(5)
 
     elif source.data_type == 'json':
         import json as _json
@@ -62,8 +66,10 @@ def _from_url(source):
     response.raise_for_status()
 
     if source.data_type == 'csv':
-        from io import StringIO
-        df = pd.read_csv(StringIO(response.text), nrows=5)
+        df = pd.read_csv(StringIO(response.text), sep=None, engine='python', nrows=5)
+
+    elif source.data_type == 'xlsx':
+        df = pd.read_excel(BytesIO(response.content), engine='openpyxl').head(5)
 
     elif source.data_type in ('json', 'api'):
         data = response.json()
@@ -110,7 +116,9 @@ def read_dataframe(source):
 
     if source.origin == 'upload' and source.file:
         if source.data_type == 'csv':
-            df = pd.read_csv(source.file.path)
+            df = pd.read_csv(source.file.path, sep=None, engine='python')
+        elif source.data_type == 'xlsx':
+            df = pd.read_excel(source.file.path, engine='openpyxl')
         elif source.data_type == 'json':
             import json as _json
             with open(source.file.path, encoding='utf-8') as f:
@@ -140,8 +148,7 @@ def read_dataframe(source):
         response = requests.get(source.connection_string, headers=headers, timeout=30)
         response.raise_for_status()
         if source.data_type == 'csv':
-            from io import StringIO
-            df = pd.read_csv(StringIO(response.text))
+            df = pd.read_csv(StringIO(response.text), sep=None, engine='python')
         else:
             data = response.json()
             if isinstance(data, list):
@@ -194,6 +201,13 @@ def execute_pipeline(integration):
     if config.key_source_b not in df_b.columns:
         raise ValueError(f"Chave '{config.key_source_b}' não encontrada em Fonte B.")
 
+    if df_a[config.key_source_a].dtype != df_b[config.key_source_b].dtype:
+        df_a = df_a.copy()
+        df_b = df_b.copy()
+        df_a[config.key_source_a] = df_a[config.key_source_a].astype(str).str.strip()
+        df_b[config.key_source_b] = df_b[config.key_source_b].astype(str).str.strip()
+        print(f"[DEBUG] normalized join keys to string for A={config.key_source_a} B={config.key_source_b}")
+
     result = pd.merge(
         df_a,
         df_b,
@@ -236,7 +250,31 @@ def execute_pipeline(integration):
 def make_preview(df):
     preview = df.copy()
     preview = preview.where(pd.notnull(preview), None)
-    return preview.to_dict(orient='records')
+    records = preview.to_dict(orient='records')
+    
+    # Ensure all values are JSON serializable
+    import datetime
+    import numpy as np
+    
+    def serialize_value(val):
+        if isinstance(val, (np.integer, np.int64, np.int32)):
+            return int(val)
+        elif isinstance(val, (np.floating, np.float64, np.float32)):
+            return float(val) if not np.isnan(val) else None
+        elif isinstance(val, np.bool_):
+            return bool(val)
+        elif isinstance(val, (datetime.date, datetime.datetime)):
+            return val.isoformat()
+        elif pd.isna(val):
+            return None
+        else:
+            return val
+    
+    for record in records:
+        for key, value in record.items():
+            record[key] = serialize_value(value)
+    
+    return records
 
 
 def build_chart_data(df, max_categories=8):
