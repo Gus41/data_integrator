@@ -11,6 +11,9 @@ class Integration(models.Model):
     name = models.CharField(max_length=255)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     record_count = models.IntegerField(null=True, blank=True)
+    result_columns = models.JSONField(null=True, blank=True)
+    result_preview = models.JSONField(null=True, blank=True)
+    chart_data = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -20,6 +23,28 @@ class Integration(models.Model):
     class Meta:
         ordering = ['-created_at']
 
+class JoinConfig(models.Model):
+    JOIN_CHOICES = [
+        ('inner', 'Inner Join'),
+        ('left',  'Left Join'),
+        ('right', 'Right Join'),
+        ('outer', 'Outer Join'),
+    ]
+
+    integration     = models.OneToOneField(
+        Integration,
+        on_delete=models.CASCADE,
+        related_name='join_config'
+    )
+    key_source_a    = models.CharField(max_length=255)
+    key_source_b    = models.CharField(max_length=255)
+    join_type       = models.CharField(max_length=10, choices=JOIN_CHOICES, default='inner')
+    columns_to_keep = models.JSONField(default=list)  # ex: ["nome", "cidade", "valor_pedido"]
+    created_at      = models.DateTimeField(auto_now_add=True)
+    updated_at      = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"JoinConfig — {self.integration.name}"
 
 class DataSource(models.Model):
     TYPE_CHOICES = [
@@ -57,6 +82,7 @@ class DataSource(models.Model):
     connection_string = models.TextField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
+    headers = models.TextField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.integration.name} — Fonte {self.label}"
